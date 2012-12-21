@@ -6,10 +6,14 @@
 account=twitmaster
 password=icanhascheezburger
 host=identica
-# Example of a custom laconica installation
+# Example of a custom StatusNet installation
 #host=http://army.twit.tv/api/statuses
 logfile=.bti.log
 #action=update
 #user=gregkh
 #proxy=http://localhost:8080
 #shrink-urls=yes
+# Example of using bit.ly in bti-shrink-urls
+#shrink_host=bit.ly
+#shrink_bitly_login=bitlyuser
+#shrink_bitly_key=R_deadbeef

@@ -1,4 +1,5 @@
 <?xml version='1.0'?>
+<?xml-stylesheet type="text/xsl" href="http://docbook.sourceforge.net/release/xsl/current/xhtml/docbook.xsl"?>
 <!DOCTYPE article PUBLIC "-//OASIS//DTD DocBook XML V4.2//EN"
   "http://www.oasis-open.org/docbook/xml/4.2/docbookx.dtd">
 
@@ -35,6 +36,7 @@
           <arg><option>--logfile LOGFILE</option></arg>
           <arg><option>--config CONFIGFILE</option></arg>
           <arg><option>--replyto ID</option></arg>
+          <arg><option>--retweet ID</option></arg>
           <arg><option>--page PAGENUMBER</option></arg>
           <arg><option>--bash</option></arg>
           <arg><option>--shrink-urls</option></arg>
@@ -98,7 +100,7 @@
 		options are "twitter" to send to twitter.com and "identica" to
         send to identi.ca.
 
-        If you want to send the message to a custom laconi.ca installation,
+        If you want to send the message to a custom StatusNet installation,
         you should specify the API URI. For example identi.ca's URI is:
         https://identi.ca/api/statuses
               </para>
@@ -160,6 +162,14 @@
             </listitem>
           </varlistentry>
           <varlistentry>
+            <term><option>--retweet ID</option></term>
+            <listitem>
+              <para>
+		Status ID of a single post which you want to retweet.
+	      </para>
+            </listitem>
+          </varlistentry>
+          <varlistentry>
             <term><option>--shrink-urls</option></term>
             <listitem>
               <para>
@@ -169,7 +179,11 @@
                 more suitable for micro-blogging.
               </para>
               <para>
-                Currently, only http://2tu.us/ is used as a URL shrinking service.
+                The following URL shrinking services are available:
+                http://2tu.us/ (default) and http://bit.ly / http://j.mp
+              </para>
+              <para>
+                See the documentation for bti-shrink-urls for the configuration options.
               </para>
             </listitem>
           </varlistentry>
@@ -214,11 +228,20 @@
 		 help specify it is coming from a command line.  Don't put the
 		 working directory and the '$' in the tweet message.
 	      </para>
+
+              <para>
+                 This option implies <option>--background</option>.
+              </para>
+            </listitem>
+          </varlistentry>
+          <varlistentry>
+            <term><option>--background</option></term>
+            <listitem>
 	      <para>
-		 This mode also does not report back any errors that might have
-		 happened when sending the message, and it sends it in the
-		 background, returning immediately, allowing the process to
-		 continue on.
+		 Do not report back any errors that might have
+		 happened when sending the message, and send it in the
+		 background, returning immediately, allowing the user
+		 to continue on.
 	       </para>
             </listitem>
           </varlistentry>
@@ -323,7 +346,7 @@
 		 options are either "twitter" or "identica" to send to
 		 twitter.com or identi.ca respectively.
 
-         If you want to send the message to a custom laconi.ca installation,
+         If you want to send the message to a custom StatusNet installation,
          you should specify the API URI. For example identi.ca's URI is:
          https://identi.ca/api/statuses.
                </para>

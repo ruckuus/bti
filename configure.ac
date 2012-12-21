@@ -1,8 +1,7 @@
-AC_INIT([bti], [027], [greg@kroah.com])
+AC_INIT([bti], [032], [greg@kroah.com])
 AC_PREREQ(2.60)
 
-AM_INIT_AUTOMAKE(bti, 027)
-dnl AM_CONFIG_HEADER([check-news foreign 1.9 dist-bzip2])
+AM_INIT_AUTOMAKE(bti, 032)
 
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 
@@ -13,50 +12,14 @@ AC_CONFIG_MACRO_DIR([m4])
 
 AC_PATH_PROG([XSLTPROC], [xsltproc])
 
-dnl FIXME: Replace `main' with a function in `-lnsl':
-AC_CHECK_LIB([nsl], [main])
-
 PKG_PROG_PKG_CONFIG()
 
 PKG_CHECK_MODULES(LIBOAUTH, oauth)
-AC_SUBST(LIBOAUTH_CFLAGS)
-AC_SUBST(LIBOAUTH_LIBS)
-
 PKG_CHECK_MODULES(LIBPCRE, libpcre)
-AC_SUBST(LIBPCRE_CFLAGS)
-AC_SUBST(LIBPCRE_LIBS)
+PKG_CHECK_MODULES([LIBCURL], [libcurl])
+PKG_CHECK_MODULES([XML], [libxml-2.0])
 
-
-# CURL
-LIBCURL_CHECK_CONFIG([yes], [], [have_libcurl="yes"], [have_libcurl="no"])
-if test "${have_libcurl}" != yes; then
-	AC_MSG_ERROR([libcurl library not found, please install it])
-fi
-
-# libxml2
-AM_PATH_XML2([], [have_libxml="yes"], [have_libxml="no"])
-if test "${have_libxml}" != yes; then
-	AC_MSG_ERROR([libxml not found, please install it])
-fi
-
-# explicitly link DSOs
-LIBS="$LIBS -ldl"
-
-
-dnl Checks for header files.
-#AC_CHECK_HEADERS([fcntl.h stddef.h stdlib.h string.h unistd.h])
-
-dnl Checks for typedefs, structures, and compiler characteristics.
-#AC_TYPE_PID_T
-#AC_TYPE_SIZE_T
-#AC_TYPE_SSIZE_T
-
-dnl Checks for library functions.
-#AC_FUNC_ALLOCA
-#AC_FUNC_FORK
-#AC_FUNC_MALLOC
-#AC_FUNC_REALLOC
-#AC_CHECK_FUNCS([strcasecmp strchr strdup strncasecmp strndup])
+AC_SEARCH_LIBS([dlopen], [dl])
 
 AC_CONFIG_FILES([Makefile])
 

@@ -1,7 +1,7 @@
 /*
- * Copyright (C) 2008 Greg Kroah-Hartman <greg@kroah.com>
+ * Copyright (C) 2008-2011 Greg Kroah-Hartman <greg@kroah.com>
  * Copyright (C) 2009 Bart Trojanowski <bart@jukie.net>
- * Copyright (C) 2009 Amir Mohammad Saied <amirsaied@gmail.com>
+ * Copyright (C) 2009-2010 Amir Mohammad Saied <amirsaied@gmail.com>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -40,7 +40,7 @@
 #include <termios.h>
 #include <dlfcn.h>
 #include <oauth.h>
-
+#include "bti.h"
 
 #define zalloc(size)	calloc(size, 1)
 
@@ -50,7 +50,6 @@
 			fprintf(stdout, "bti: %s: " format , __func__ , \
 				## arg);				\
 	} while (0)
-
 
 static int debug;
 static int verbose;
@@ -137,6 +136,37 @@ static void display_help(void)
 	fprintf(stdout, "  --dry-run\n");
 	fprintf(stdout, "  --version\n");
 	fprintf(stdout, "  --help\n");
+int debug;
+
+static void display_help(void)
+{
+	fprintf(stdout, "bti - send tweet to twitter or identi.ca\n"
+		"Version: %s\n"
+		"Usage:\n"
+		"  bti [options]\n"
+		"options are:\n"
+		"  --account accountname\n"
+		"  --password password\n"
+		"  --action action\n"
+		"    ('update', 'friends', 'public', 'replies', or 'user')\n"
+		"  --user screenname\n"
+		"  --group groupname\n"
+		"  --proxy PROXY:PORT\n"
+		"  --host HOST\n"
+		"  --logfile logfile\n"
+		"  --config configfile\n"
+		"  --replyto ID\n"
+		"  --retweet ID\n"
+		"  --shrink-urls\n"
+		"  --page PAGENUMBER\n"
+		"  --column COLUMNWIDTH\n"
+		"  --bash\n"
+		"  --background\n"
+		"  --debug\n"
+		"  --verbose\n"
+		"  --dry-run\n"
+		"  --version\n"
+		"  --help\n", VERSION);
 }
 
 static void display_version(void)
@@ -154,8 +184,10 @@ static char *get_string(const char *name)
 		exit(1);
 	if (name != NULL)
 		fprintf(stdout, "%s", name);
-	if (!fgets(string, 999, stdin))
+	if (!fgets(string, 999, stdin)) {
+		free(string);
 		return NULL;
+	}
 	temp = strchr(string, '\n');
 	if (temp)
 		*temp = '\0';
@@ -171,7 +203,7 @@ static char *get_string(const char *name)
  * lib/ss/get_readline.c file, which is licensed under the MIT license.
  *
  * This keeps us from having to relicense the bti codebase if readline
- * ever changes its license, as there is no link-time dependancy.
+ * ever changes its license, as there is no link-time dependency.
  * It is a run-time thing only, and we handle any readline-like library
  * in the same manner, making bti not be a derivative work of any
  * other program.
@@ -322,6 +354,33 @@ static const char *mentions_uri = "/mentions.xml";
 static const char *replies_uri  = "/replies.xml";
 static const char *retweet_uri	= "/retweet/";
 static const char *group_uri    = "/../statusnet/groups/timeline/";
+const char twitter_host[]  = "http://api.twitter.com/1/statuses";
+const char identica_host[] = "https://identi.ca/api/statuses";
+const char twitter_name[]  = "twitter";
+const char identica_name[] = "identi.ca";
+
+static const char twitter_request_token_uri[]  = "http://twitter.com/oauth/request_token";
+static const char twitter_access_token_uri[]   = "http://twitter.com/oauth/access_token";
+static const char twitter_authorize_uri[]      = "http://twitter.com/oauth/authorize?oauth_token=";
+static const char identica_request_token_uri[] = "https://identi.ca/api/oauth/request_token?oauth_callback=oob";
+static const char identica_access_token_uri[]  = "https://identi.ca/api/oauth/access_token";
+static const char identica_authorize_uri[]     = "https://identi.ca/api/oauth/authorize?oauth_token=";
+static const char custom_request_token_uri[]   = "/../oauth/request_token?oauth_callback=oob";
+static const char custom_access_token_uri[]    = "/../oauth/access_token";
+static const char custom_authorize_uri[]       = "/../oauth/authorize?oauth_token=";
+
+static const char user_uri[]     = "/user_timeline/";
+static const char update_uri[]   = "/update.xml";
+static const char public_uri[]   = "/public_timeline.xml";
+static const char friends_uri[]  = "/friends_timeline.xml";
+static const char mentions_uri[] = "/mentions.xml";
+static const char replies_uri[]  = "/replies.xml";
+static const char retweet_uri[]  = "/retweet/";
+static const char group_uri[]    = "/../statusnet/groups/timeline/";
+
+static const char config_default[]	= "/etc/bti";
+static const char config_user_default[]	= ".bti";
+>>>>>>> gregkh/bti/master
 
 static CURL *curl_init(void)
 {
@@ -338,7 +397,19 @@ static CURL *curl_init(void)
 	return curl;
 }
 
-static void parse_statuses(xmlDocPtr doc, xmlNodePtr current)
+/* The final place data is sent to the screen/pty/tty */
+static void bti_output_line(struct session *session, xmlChar *user,
+			    xmlChar *id, xmlChar *created, xmlChar *text)
+{
+	if (session->verbose)
+		printf("[%*s] {%s} (%.16s) %s\n", -session->column_output, user,
+				id, created, text);
+	else
+		printf("[%*s] %s\n", -session->column_output, user, text);
+}
+
+static void parse_statuses(struct session *session,
+			   xmlDocPtr doc, xmlNodePtr current)
 {
 	xmlChar *text = NULL;
 	xmlChar *user = NULL;
@@ -368,12 +439,8 @@ static void parse_statuses(xmlDocPtr doc, xmlNodePtr current)
 			}
 
 			if (user && text && created && id) {
-				if (verbose)
-					printf("[%s] {%s} (%.16s) %s\n",
-						user, id, created, text);
-				else
-					printf("[%s] %s\n",
-						user, text);
+				bti_output_line(session, user, id,
+						created, text);
 				xmlFree(user);
 				xmlFree(text);
 				xmlFree(created);
@@ -390,7 +457,7 @@ static void parse_statuses(xmlDocPtr doc, xmlNodePtr current)
 	return;
 }
 
-static void parse_timeline(char *document)
+static void parse_timeline(char *document, struct session *session)
 {
 	xmlDocPtr doc;
 	xmlNodePtr current;
@@ -416,7 +483,7 @@ static void parse_timeline(char *document)
 	current = current->xmlChildrenNode;
 	while (current != NULL) {
 		if ((!xmlStrcmp(current->name, (const xmlChar *)"status")))
-			parse_statuses(doc, current);
+			parse_statuses(session, doc, current);
 		current = current->next;
 	}
 	xmlFreeDoc(doc);
@@ -445,7 +512,7 @@ static size_t curl_callback(void *buffer, size_t size, size_t nmemb,
 	memcpy(&curl_buf->data[curl_buf->length], (char *)buffer, buffer_size);
 	curl_buf->length += buffer_size;
 	if (curl_buf->action)
-		parse_timeline(curl_buf->data);
+		parse_timeline(curl_buf->data, curl_buf->session);
 
 	dbg("%s\n", curl_buf->data);
 
@@ -494,11 +561,12 @@ static int request_access_token(struct session *session)
 {
 	char *post_params = NULL;
 	char *request_url = NULL;
-	char *reply    = NULL;
+	char *reply       = NULL;
 	char *at_key      = NULL;
 	char *at_secret   = NULL;
 	char *verifier    = NULL;
 	char at_uri[90];
+	char token_uri[90];
 
 	if (!session)
 		return -EINVAL;
@@ -513,6 +581,14 @@ static int request_access_token(struct session *session)
 				identica_request_token_uri, NULL,
 				OA_HMAC, NULL, session->consumer_key,
 				session->consumer_secret, NULL, NULL);
+	else {
+		sprintf(token_uri, "%s%s",
+			session->hosturl, custom_request_token_uri);
+		request_url = oauth_sign_url2(
+				token_uri, NULL,
+				OA_HMAC, NULL, session->consumer_key,
+				session->consumer_secret, NULL, NULL);
+	}
 	reply = oauth_http_get(request_url, post_params);
 
 	if (request_url)
@@ -529,9 +605,10 @@ static int request_access_token(struct session *session)
 
 	free(reply);
 
-	fprintf(stdout, "Please open the following link in your browser, and ");
-	fprintf(stdout, "allow 'bti' to access your account. Then paste ");
-	fprintf(stdout, "back the provided PIN in here.\n");
+	fprintf(stdout,
+		"Please open the following link in your browser, and "
+		"allow 'bti' to access your account. Then paste "
+		"back the provided PIN in here.\n");
 	if (session->host == HOST_TWITTER) {
 		fprintf(stdout, "%s%s\nPIN: ", twitter_authorize_uri, at_key);
 		verifier = session->readline(NULL);
@@ -542,6 +619,12 @@ static int request_access_token(struct session *session)
 		verifier = session->readline(NULL);
 		sprintf(at_uri, "%s?oauth_verifier=%s",
 			identica_access_token_uri, verifier);
+	} else {
+		fprintf(stdout, "%s%s%s\nPIN: ",
+			session->hosturl, custom_authorize_uri, at_key);
+		verifier = session->readline(NULL);
+		sprintf(at_uri, "%s%s?oauth_verifier=%s",
+			session->hosturl, custom_access_token_uri, verifier);
 	}
 	request_url = oauth_sign_url2(at_uri, NULL, OA_HMAC, NULL,
 				      session->consumer_key,
@@ -557,10 +640,12 @@ static int request_access_token(struct session *session)
 
 	free(reply);
 
-	fprintf(stdout, "Please put these two lines in your bti ");
-	fprintf(stdout, "configuration file (~/.bti):\n");
-	fprintf(stdout, "access_token_key=%s\n", at_key);
-	fprintf(stdout, "access_token_secret=%s\n", at_secret);
+	fprintf(stdout,
+		"Please put these two lines in your bti "
+		"configuration file (%s):\n"
+		"access_token_key=%s\n"
+		"access_token_secret=%s\n",
+		session->configfile, at_key, at_secret);
 
 	return 0;
 }
@@ -588,14 +673,17 @@ static int send_request(struct session *session)
 	if (!session->hosturl)
 		session->hosturl = strdup(twitter_host);
 
-	if (session->no_oauth) {
+	if (session->no_oauth || session->guest) {
 		curl_buf = bti_curl_buffer_alloc(session->action);
 		if (!curl_buf)
 			return -ENOMEM;
+		curl_buf->session = session;
 
 		curl = curl_init();
-		if (!curl)
+		if (!curl) {
+			bti_curl_buffer_free(curl_buf);
 			return -EINVAL;
+		}
 
 		if (!session->hosturl)
 			session->hosturl = strdup(twitter_host);
@@ -618,8 +706,10 @@ static int send_request(struct session *session)
 
 			if (session->replyto)
 				curl_formadd(&formpost, &lastptr,
-					     CURLFORM_COPYNAME, "in_reply_to_status_id",
-					     CURLFORM_COPYCONTENTS, session->replyto,
+					     CURLFORM_COPYNAME,
+					     "in_reply_to_status_id",
+					     CURLFORM_COPYCONTENTS,
+					     session->replyto,
 					     CURLFORM_END);
 
 			curl_easy_setopt(curl, CURLOPT_HTTPPOST, formpost);
@@ -686,10 +776,54 @@ static int send_request(struct session *session)
 		curl_easy_setopt(curl, CURLOPT_WRITEDATA, curl_buf);
 		if (!session->dry_run) {
 			res = curl_easy_perform(curl);
-			if (res && !session->bash) {
-				fprintf(stderr, "error(%d) trying to perform "
-						"operation\n", res);
-				return -EINVAL;
+			if (!session->background) {
+				xmlDocPtr doc;
+				xmlNodePtr current;
+
+				if (res) {
+					fprintf(stderr, "error(%d) trying to "
+						"perform operation\n", res);
+					curl_easy_cleanup(curl);
+					if (session->action == ACTION_UPDATE)
+						curl_formfree(formpost);
+					bti_curl_buffer_free(curl_buf);
+					return -EINVAL;
+				}
+
+				doc = xmlReadMemory(curl_buf->data,
+						    curl_buf->length,
+						    "response.xml", NULL,
+						    XML_PARSE_NOERROR);
+				if (doc == NULL) {
+					curl_easy_cleanup(curl);
+					if (session->action == ACTION_UPDATE)
+						curl_formfree(formpost);
+					bti_curl_buffer_free(curl_buf);
+					return -EINVAL;
+				}
+
+				current = xmlDocGetRootElement(doc);
+				if (current == NULL) {
+					fprintf(stderr, "empty document\n");
+					xmlFreeDoc(doc);
+					curl_easy_cleanup(curl);
+					if (session->action == ACTION_UPDATE)
+						curl_formfree(formpost);
+					bti_curl_buffer_free(curl_buf);
+					return -EINVAL;
+				}
+
+				if (xmlStrcmp(current->name, (const xmlChar *)"status")) {
+					fprintf(stderr, "unexpected document type\n");
+					xmlFreeDoc(doc);
+					curl_easy_cleanup(curl);
+					if (session->action == ACTION_UPDATE)
+						curl_formfree(formpost);
+					bti_curl_buffer_free(curl_buf);
+					return -EINVAL;
+				}
+
+				xmlFreeDoc(doc);
 			}
 		}
 
@@ -745,30 +879,41 @@ static int send_request(struct session *session)
 			break;
 		}
 
-		if (is_post) {
-			req_url = oauth_sign_url2(endpoint, &postarg, OA_HMAC,
-						  NULL, session->consumer_key,
-						  session->consumer_secret,
-						  session->access_token_key,
-						  session->access_token_secret);
-			reply = oauth_http_post(req_url, postarg);
-		} else {
-			req_url = oauth_sign_url2(endpoint, NULL, OA_HMAC, NULL,
-						  session->consumer_key,
-						  session->consumer_secret,
-						  session->access_token_key,
-						  session->access_token_secret);
-			reply = oauth_http_get(req_url, postarg);
+		dbg("%s\n", endpoint);
+		if (!session->dry_run) {
+			if (is_post) {
+				req_url = oauth_sign_url2(endpoint, &postarg, OA_HMAC,
+							  NULL, session->consumer_key,
+							  session->consumer_secret,
+							  session->access_token_key,
+							  session->access_token_secret);
+				reply = oauth_http_post(req_url, postarg);
+			} else {
+				req_url = oauth_sign_url2(endpoint, NULL, OA_HMAC, NULL,
+							  session->consumer_key,
+							  session->consumer_secret,
+							  session->access_token_key,
+							  session->access_token_secret);
+				reply = oauth_http_get(req_url, postarg);
+			}
+
+			dbg("%s\n", req_url);
+			dbg("%s\n", reply);
+			if (req_url)
+				free(req_url);
 		}
 
-		dbg("%s\n", req_url);
-		dbg("%s\n", reply);
-		if (req_url)
-			free(req_url);
+		if (!reply) {
+			fprintf(stderr, "Error retrieving from URL (%s)\n", endpoint);
+			return -EIO;
+		}
 
 		if ((session->action != ACTION_UPDATE) && 
 				(session->action != ACTION_RETWEET))
 			parse_timeline(reply);
+		if ((session->action != ACTION_UPDATE) &&
+				(session->action != ACTION_RETWEET))
+			parse_timeline(reply, session);
 	}
 	return 0;
 }
@@ -1026,8 +1171,10 @@ static char *get_string_from_stdin(void)
 	if (!string)
 		return NULL;
 
-	if (!fgets(string, 999, stdin))
+	if (!fgets(string, 999, stdin)) {
+		free(string);
 		return NULL;
+	}
 	temp = strchr(string, '\n');
 	if (temp)
 		*temp = '\0';
@@ -1037,7 +1184,6 @@ static char *get_string_from_stdin(void)
 static void read_password(char *buf, size_t len, char *host)
 {
 	char pwd[80];
-	int retval;
 	struct termios old;
 	struct termios tp;
 
@@ -1050,7 +1196,13 @@ static void read_password(char *buf, size_t len, char *host)
 	fprintf(stdout, "Enter password for %s: ", host);
 	fflush(stdout);
 	tcflow(0, TCOOFF);
-	retval = scanf("%79s", pwd);
+
+	/*
+	 * I'd like to do something with the return value here, but really,
+	 * what can be done?
+	 */
+	(void)scanf("%79s", pwd);
+
 	tcflow(0, TCOON);
 	fprintf(stdout, "\n");
 
@@ -1198,11 +1350,11 @@ error_in:
 
 static int pcloseRWE(int pid, int *rwepipe)
 {
-	int rc, status;
+	int status;
 	close(rwepipe[0]);
 	close(rwepipe[1]);
 	close(rwepipe[2]);
-	rc = waitpid(pid, &status, 0);
+	(void)waitpid(pid, &status, 0);
 	return status;
 }
 
@@ -1338,8 +1490,10 @@ int main(int argc, char *argv[], char *envp[])
 		{ "shrink-urls", 0, NULL, 's' },
 		{ "help", 0, NULL, 'h' },
 		{ "bash", 0, NULL, 'b' },
+		{ "background", 0, NULL, 'B' },
 		{ "dry-run", 0, NULL, 'n' },
 		{ "page", 1, NULL, 'g' },
+		{ "column", 1, NULL, 'o' },
 		{ "version", 0, NULL, 'v' },
 		{ "config", 1, NULL, 'c' },
 		{ "replyto", 1, NULL, 'r' },
@@ -1354,11 +1508,12 @@ int main(int argc, char *argv[], char *envp[])
 	int retval = 0;
 	int option;
 	char *http_proxy;
+	char *home;
+	const char *config_file;
 	time_t t;
 	int page_nr;
 
 	debug = 0;
-	verbose = 0;
 
 	session = session_alloc();
 	if (!session) {
@@ -1371,12 +1526,23 @@ int main(int argc, char *argv[], char *envp[])
 	session->time = strdup(ctime(&t));
 	session->time[strlen(session->time)-1] = 0x00;
 
-	/* Get the home directory so we can try to find a config file */
-	session->homedir = strdup(getenv("HOME"));
+	/*
+	 * Get the home directory so we can try to find a config file.
+	 * If we have no home dir set up, look in /etc/bti
+	 */
+	home = getenv("HOME");
+	if (home) {
+		/* We have a home dir, so this might be a user */
+		session->homedir = strdup(home);
+		config_file = config_user_default;
+	} else {
+		session->homedir = strdup("");
+		config_file = config_default;
+	}
 
 	/* set up a default config file location (traditionally ~/.bti) */
-	session->configfile = zalloc(strlen(session->homedir) + 7);
-	sprintf(session->configfile, "%s/.bti", session->homedir);
+	session->configfile = zalloc(strlen(session->homedir) + strlen(config_file) + 7);
+	sprintf(session->configfile, "%s/%s", session->homedir, config_file);
 
 	/* Set environment variables first, before reading command line options
 	 * or config file values. */
@@ -1388,11 +1554,11 @@ int main(int argc, char *argv[], char *envp[])
 		dbg("http_proxy = %s\n", session->proxy);
 	}
 
-	parse_configfile(session);
+	bti_parse_configfile(session);
 
 	while (1) {
 		option = getopt_long_only(argc, argv,
-					  "dp:P:H:a:A:u:c:hg:G:sr:nVv",
+					  "dp:P:H:a:A:u:c:hg:o:G:sr:nVvw:",
 					  options, NULL);
 		if (option == -1)
 			break;
@@ -1401,7 +1567,7 @@ int main(int argc, char *argv[], char *envp[])
 			debug = 1;
 			break;
 		case 'V':
-			verbose = 1;
+			session->verbose = 1;
 			break;
 		case 'a':
 			if (session->account)
@@ -1413,6 +1579,10 @@ int main(int argc, char *argv[], char *envp[])
 			page_nr = atoi(optarg);
 			dbg("page = %d\n", page_nr);
 			session->page = page_nr;
+			break;
+		case 'o':
+			session->column_output = atoi(optarg);
+			dbg("column_output = %d\n", session->column_output);
 			break;
 		case 'r':
 			session->replyto = strdup(optarg);
@@ -1447,7 +1617,7 @@ int main(int argc, char *argv[], char *envp[])
 				session->action = ACTION_PUBLIC;
 			else if (strcasecmp(optarg, "group") == 0)
 				session->action = ACTION_GROUP;
-			else if (strcasecmp(optarg,"retweet") == 0)
+			else if (strcasecmp(optarg, "retweet") == 0)
 				session->action = ACTION_RETWEET;
 			else
 				session->action = ACTION_UNKNOWN;
@@ -1497,6 +1667,9 @@ int main(int argc, char *argv[], char *envp[])
 			break;
 		case 'b':
 			session->bash = 1;
+			/* fall-through intended */
+		case 'B':
+			session->background = 1;
 			break;
 		case 'c':
 			if (session->configfile)
@@ -1509,7 +1682,7 @@ int main(int argc, char *argv[], char *envp[])
 			 * previously set options from the command line, but
 			 * the user asked for it...
 			 */
-			parse_configfile(session);
+			bti_parse_configfile(session);
 			break;
 		case 'h':
 			display_help();
@@ -1536,10 +1709,20 @@ int main(int argc, char *argv[], char *envp[])
 
 	if (session->host == HOST_TWITTER) {
 		if (!session->consumer_key || !session->consumer_secret) {
-			fprintf(stderr, "Twitter no longer supuports HTTP basic authentication.\n");
-			fprintf(stderr, "Both consumer key, and consumer secret are required");
-			fprintf(stderr, " for bti in order to behave as an OAuth consumer.\n");
-			goto exit;
+			if (session->action == ACTION_USER ||
+					session->action == ACTION_PUBLIC) {
+				/*
+				 * Some actions may still work without
+				 * authentication
+				 */
+				session->guest = 1;
+			} else {
+				fprintf(stderr,
+						"Twitter no longer supports HTTP basic authentication.\n"
+						"Both consumer key, and consumer secret are required"
+						" for bti in order to behave as an OAuth consumer.\n");
+				goto exit;
+			}
 		}
 		if (session->action == ACTION_GROUP) {
 			fprintf(stderr, "Groups only work in Identi.ca.\n");
@@ -1561,7 +1744,7 @@ int main(int argc, char *argv[], char *envp[])
 				      session->hostname);
 			session->password = strdup(password);
 		}
-	} else {
+	} else if (!session->guest) {
 		if (!session->access_token_key ||
 		    !session->access_token_secret) {
 			request_access_token(session);
@@ -1570,9 +1753,8 @@ int main(int argc, char *argv[], char *envp[])
 	}
 
 	if (session->action == ACTION_UNKNOWN) {
-		fprintf(stderr, "Unknown action, valid actions are:\n");
-		fprintf(stderr, "'update', 'friends', 'public', "
-			"'replies', 'group' or 'user'.\n");
+		fprintf(stderr, "Unknown action, valid actions are:\n"
+			"'update', 'friends', 'public', 'replies', 'group' or 'user'.\n");
 		goto exit;
 	}
 
@@ -1586,6 +1768,17 @@ int main(int argc, char *argv[], char *envp[])
 		retweet = get_string_from_stdin();
 
 		if (!retweet || strlen(retweet) == 0) {
+		if (!session->retweet) {
+			char *rtid;
+
+			fprintf(stdout, "Status ID to retweet: ");
+			rtid = get_string_from_stdin();
+			session->retweet = zalloc(strlen(rtid) + 10);
+			sprintf(session->retweet, "%s", rtid);
+			free(rtid);
+		}
+
+		if (!session->retweet || strlen(session->retweet) == 0) {
 			dbg("no retweet?\n");
 			return -1;
 		}
@@ -1597,7 +1790,7 @@ int main(int argc, char *argv[], char *envp[])
 	}
 
 	if (session->action == ACTION_UPDATE) {
-		if (session->bash || !session->interactive)
+		if (session->background || !session->interactive)
 			tweet = get_string_from_stdin();
 		else
 			tweet = session->readline("tweet: ");
@@ -1629,7 +1822,7 @@ int main(int argc, char *argv[], char *envp[])
 	/* fork ourself so that the main shell can get on
 	 * with it's life as we try to connect and handle everything
 	 */
-	if (session->bash) {
+	if (session->background) {
 		child = fork();
 		if (child) {
 			dbg("child is %d\n", child);
@@ -1638,7 +1831,7 @@ int main(int argc, char *argv[], char *envp[])
 	}
 
 	retval = send_request(session);
-	if (retval && !session->bash)
+	if (retval && !session->background)
 		fprintf(stderr, "operation failed\n");
 
 	log_session(session, retval);
