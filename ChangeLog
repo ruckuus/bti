@@ -1,3 +1,134 @@
+Summary of changes from v031 to v032
+============================================
+
+Amir Mohammad Saied (1):
+      s/http/https/g
+
+Fabian Groffen (1):
+      bti: allow compilation on non-GNU platforms
+
+Galen Charlton (1):
+      teach bti how to do OAuth for custom StatusNet installations
+
+Greg Kroah-Hartman (4):
+      bti: Handle NULL HOME environment variables
+      bti.xml: docsheet url cleanup
+      update bti.1 with latest docbook template goodness
+      fix up some compiler warnings
+
+Jonathan Neuschäfer (4):
+      fix common misspellings
+      get_string*: fix a memory leak
+      HACKING: this is bti, not smugbatch
+      send_request: don't leak the curl stuff
+
+gregor herrmann (7):
+      Die if no host is provided.
+      Name correct hosts in prompts.
+      Add documentation for new shrink_host feature in bti-shrink-urls.
+      Document the new --retweet feature in bti.xml and add it to bash completion.
+      Active --dry-run for OAuth.
+      laconi.ca was renamed to StatusNet
+      Output actually used config file name instead of hardcoded ~/.bti in request_access_token().
+
+siers (1):
+      Output can be evened like a table with --column 20.
+
+
+Summary of changes from v030 to v031
+============================================
+
+Diego Elio Pettenò (1):
+      In non-background execution, check whether the server reports success.
+
+Greg Kroah-Hartman (2):
+      code formatting cleanups
+      config: fix possible access of non-allocated memory
+
+Michel Alexandre Salim (2):
+      Only treat # as a comment marker if it's at the beginning of line or is preceded by a whitespace character
+      Keep searching for '#' comment marker if previous occurence was a false positive
+
+
+Summary of changes from v029 to v030
+============================================
+
+Greg Kroah-Hartman (9):
+      turn on some better compiler warnings.
+      move debug to bti.h
+      fix compiler warning with bti_output_line
+      rewrite the config parser
+      Revert "turn on some better compiler warnings."
+      config.c: fix up some compiler warnings
+      config.c: remove config debug lines.
+      bti.c: fix another compiler warning about global functions.
+      send_request needs to return a negative error value.
+
+L. Alberto Giménez (4):
+      Fix trivial compiler warnings
+      Added tags files to .gitignore
+      Fix retweet batch operation
+      Fix a segfault when specifying an invalid host.
+
+
+Summary of changes from v028 to v029
+============================================
+
+Amir Mohammad Saied (2):
+      Update my copyright date.
+      Fixing Identi.ca's OAuth request_token URI
+
+Dwi Sasongko S (1):
+      Support proper 'reply_to' and 'retweet'
+
+Greg Kroah-Hartman (9):
+      updated man pages generated from the docbook source
+      Merge https://github.com/leif81/bti into main tree
+      Merge testing branch into master
+      Merge branch 'oauth-readme' of https://github.com/agimenez/bti into agimenez-oauth-readme
+      reformat README to have a bit shorter lines
+      move verbose flag into the session structure
+      create bti.h
+      add config.c
+      move output logic to one function
+
+Justin Forest (1):
+      Support shrinking with bit.ly and j.mp.
+
+L. Alberto Giménez (1):
+      Document how to configure OAuth.
+
+Leif Gruenwoldt (1):
+      user and public actions may not require auth
+
+gregor herrmann (3):
+      Add documentation for new shrink_host feature in bti-shrink-urls.
+      Document the new --retweet feature in bti.xml and add it to bash completion.
+      Active --dry-run for OAuth.
+
+
+Summary of changes from v027 to v028
+============================================
+
+Diego Elio 'Flameeyes' Pettenò (7):
+      build system: use consistently pkg-config to check for dependencies
+      build system: use AC_SEARCH_LIBS rather than assuming -ldl is needed.
+      Remove autoscan-generated bad tests.
+      Use arrays rather than pointers for static strings.
+      Typo fix.
+      Split --background from --bash, and make the latter imply the former.
+      Collapse more fprintf() calls.
+
+Greg Kroah-Hartman (7):
+      Fixup typo in Makefile.am found by @applehq
+      new version of checkpatch.pl from 2.6.35-rc1 kernel
+      whitespace cleanups for bti.c
+      more formatting cleanups
+      long line cleanups
+      Update my copyright date.
+      Reduce the number of calls to fprintf.
+
+
 Summary of changes from v026 to v027
 ============================================
 

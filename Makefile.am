@@ -5,13 +5,15 @@ bin_SCRIPTS = \
 	bti-shrink-urls
 
 bti_SOURCES = \
+	bti.h \
+	config.c \
 	bti.c
 
-bti_CPPFLAGS = \
-	$(LIBCURL_CPPFLAGS) \
-	$(XML_CPPFLAGS) \
-	$(LIBPCRE_CPPFLAGS) \
-	$(LIBOAUTH_CPPFLAGS)
+bti_CFLAGS = \
+	$(LIBCURL_CFLAGS) \
+	$(XML_CFLAGS) \
+	$(LIBPCRE_CFLAGS) \
+	$(LIBOAUTH_CFLAGS)
 
 bti_LDADD = \
 	$(LIBCURL_LIBS) \
